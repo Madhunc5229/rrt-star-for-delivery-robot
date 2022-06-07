@@ -36,3 +36,6 @@ In this project, RRT* star algorithm has been implemeted for path planning for a
 
 https://user-images.githubusercontent.com/61328094/172286914-8b1295f8-ba2a-403f-99d8-e5e7fa4b841e.mp4
 
+## For full video:
+https://www.youtube.com/watch?v=37qtxaqpePQ
+
