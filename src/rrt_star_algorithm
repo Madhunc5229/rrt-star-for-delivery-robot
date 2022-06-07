@@ -1,0 +1,422 @@
+#!/usr/bin/env python3
+
+import random
+
+import cv2 as cv
+import numpy as np
+from copy import deepcopy
+from map import layout
+
+
+
+# Class to keep track of the parent and the current nodes 
+class rrt_star:
+    
+    # To store the parent node
+    parent_node = (0, 0)
+
+    # To store the current node
+    current_node = (0, 0)
+
+    # Cost to come till this node
+    cost_2_come = 0
+
+
+# Method that returns true if the state is in the Obstacle space
+def is_Obstacle(rand_point):
+
+    # Change later
+    return False
+
+
+# Method that checks if the states in the found tree reached the goal
+# Returns True if not in goal
+def is_not_goal (found_tree, goal_state, threshold = 10):
+    
+    for i in range(len(found_tree)):
+
+        if (np.sqrt((goal_state[0] - found_tree[i].current_node[0]) ** 2 + (goal_state[1] - found_tree[i].current_node[1]) ** 2) < threshold):
+            return False
+    return True
+
+
+# Method that checks if the random state is in the found path
+# Returns True if in range
+def is_in_range (found_tree, random_state, threshold = 10):
+    
+    for i in range(len(found_tree)):
+
+        if (np.sqrt((random_state[0] - found_tree[i].current_node[0]) ** 2 + (random_state[1] - found_tree[i].current_node[1]) ** 2) < threshold):
+            return True
+    return False
+
+
+# Method to get the parent node's data
+def parent_node_distance (found_tree, current_node):
+
+    for node in found_tree:
+
+        if node.current_node == current_node:
+            return node.cost_2_come
+    
+    return 0
+
+
+# Find the closest node in the tree with respect to the random point
+def closest_node (found_tree, random_point):
+    
+    distance = list()
+    new_point = (0, 0)
+
+    random_point = np.array(random_point)
+    temp=(0, 0)
+
+    for point in found_tree:
+        temp = np.array(point.current_node)
+        distance.append(np.linalg.norm(temp - random_point))
+
+    # print(min(distance))
+    # print(distance)#.index[min(distance)])
+    new_point = found_tree[distance.index(min(distance))].current_node
+
+    return new_point, min(distance)
+
+
+# Method to find the path from the start to goal 
+def backtracking (found_tree, goal_state, goal_node_threshold = 10):
+
+    path_found = list()
+    distances = list()
+    goal_state = np.array(goal_state)
+    search_path = found_tree[::-1]
+    goal_flag = False
+
+    for node in search_path:
+        temp = np.array(node.current_node)
+        distances.append(np.linalg.norm(temp - goal_state))
+        
+        if goal_flag == False and \
+            (np.sqrt((goal_state[0] - node.current_node[0]) ** 2 + (goal_state[1] - node.current_node[1]) ** 2) < goal_node_threshold):
+            goal_flag = True
+
+    if (goal_flag == False):
+        return None
+    curent_node = search_path.pop(distances.index(min(distances)))
+    path_found.append(deepcopy(curent_node))
+
+    while search_path:
+        
+        for node in search_path:
+            if curent_node.parent_node == node.current_node:
+                path_found.append(node)
+                curent_node = search_path.pop(0)
+                break
+            else:
+                search_path.pop(0)
+                break
+
+    return path_found[::-1]
+
+
+# Method to return a list of the nodes that are in the neighborhood of the new node
+def nearest_neighbours (found_tree, new_node, neighbour_radius = 20):
+
+    neighbours_list = list()
+
+    for node in found_tree:
+        
+        if (np.sqrt((new_node[0] - node.current_node[0]) ** 2 + (new_node[1] - node.current_node[1]) ** 2) <= neighbour_radius):
+            neighbours_list.append(deepcopy(node))
+
+    return neighbours_list
+
+
+# Method to correct the neighbor node points
+def neighborhood_correction (neighbours_list, new_node, step_size = 10):
+
+    costs = list()
+    distances = list()
+    node_converted = np.array(new_node)
+    best_parent = (0, 0)
+    best_distance = 0
+
+    for node in neighbours_list:
+        temp = np.array(node.current_node)
+        temp = np.linalg.norm(node_converted - temp)
+        costs.append(node.cost_2_come + temp)
+        distances.append(temp)
+
+    best_distance = min(costs)
+    best_parent = neighbours_list[costs.index(min(costs))].current_node
+
+    for i in range(len(neighbours_list)):
+
+        if neighbours_list[i].current_node == best_parent:
+            continue
+        else:
+            if (best_distance + distances[i]) < neighbours_list[i].cost_2_come:
+                neighbours_list[i].parent_node = new_node
+                neighbours_list[i].cost_2_come = best_distance + distances[i]
+
+    return best_parent, best_distance
+
+
+# Method to visualize the data
+def visualization (arena, map_size, start_state, goal_state, rand_point, found_tree, ball_radius, clearance):
+    
+    # new_arena = deepcopy(arena)
+    new_arena = arena
+
+    cv.circle(new_arena, (start_state[0], (map_size[1] - 1) - start_state[1]), 4, (0, 255, 0), -1)
+    cv.circle(new_arena, (goal_state[0], (map_size[1] - 1) - goal_state[1]), 4, (0, 0, 255), -1)
+    # new_arena = create_obstacles (new_arena)
+    
+    cv.circle(new_arena, (rand_point[0], (map_size[1] - 1) - rand_point[1]), 3, (200, 200, 200), -1)
+    # cv.imshow('Generating Points', new_arena)
+    # cv.waitKey(1)
+
+    for node in found_tree:
+
+        if node.parent_node == None:
+            continue
+        cv.circle(new_arena, (node.parent_node[0], (map_size[1] - 1) - node.parent_node[1]), 3, (255, 255, 255), -1)
+        cv.circle(new_arena, (node.current_node[0], (map_size[1] - 1) - node.current_node[1]), 3, (255, 255, 255), -1)
+        cv.line(new_arena, (node.current_node[0], (map_size[1] - 1) - node.current_node[1]), (node.parent_node[0], (map_size[1] - 1) - node.parent_node[1]), (255, 255, 255), 1)
+
+    # cv.imshow('Generating Points', new_arena)
+    # cv.waitKey(1)
+
+    cv.circle(new_arena, (rand_point[0], (map_size[1] - 1) - rand_point[1]), 3, (0, 0, 0), -1)
+    cv.imshow('Generating Points', new_arena)
+    cv.waitKey(1)
+
+    return new_arena
+
+
+# To plot the path from start to goal
+
+def plot_found_path(arena, map_size, start_state, goal_path, window_text = 'Generating Points'):
+    
+    # arena = layout
+    first_point = start_state
+    distance = 0
+        
+    for point in goal_path:
+        cv.circle(arena, (first_point[0], (map_size[1] - 1) - first_point[1]), 3, (0, 0, 255), -1)
+        cv.line(arena, (first_point[0], (map_size[1] - 1) - first_point[1]), (point.current_node[0], (map_size[1] - 1) - point.current_node[1]), (0, 0, 255), 1)
+        distance += np.linalg.norm(np.array([first_point[0],first_point[1]])-np.array([point.current_node[0],point.current_node[1]]))
+        cv.imshow('Generating Points', arena)
+        cv.waitKey(10)
+        # cv.imshow('best path', layout)
+        # cv.waitKey(10)
+        first_point = point.current_node
+    return distance
+
+
+# Method to check if the random point is in the obstacle or outside map bounds
+def in_obstacle (arena, map_size, rand_point, clearance = 10):
+
+    if ((rand_point[0] < (0 + clearance)) or (rand_point[0] >= (map_size[0] - clearance)) \
+        or (rand_point[1] < (0 + clearance)) or (rand_point[1] >= (map_size[1] - clearance))):
+        return True
+    elif (arena[599-rand_point[1], rand_point[0],0] == 255 and arena[599-rand_point[1], rand_point[0],1] == 255 and arena[599-rand_point[1], rand_point[0],2] == 255):
+        return True
+    return False
+
+
+
+
+# Method to create obstacles
+def create_obstacles (arena):
+    
+    # column_index = (map_size[1] - 1) // 2
+    # cv.circle(arena, ((map_size[0] - 1) // 2, ((map_size[1] - 1) - (column_index))), ball_radius + clearance, (255, 0, 0), -1)
+
+    return deepcopy(layout)
+
+
+def rrt_star_algorithm(start_state, map_size, goal_state, step_size = 10, random_point_threshold = 2, goal_node_threshold = 10, neighbour_radius = 20, number_of_nodes = 100, clearance = 10, ball_radius = 20):
+    
+    # Creating the arena
+    #obstacle map is passed to algo here
+    # arena = np.zeros((map_size[1], map_size[0], 3), dtype = np.uint8)
+    arena = deepcopy(layout)
+    # arena = create_obstacles(arena)
+    cv.circle(arena, (start_state[0], (map_size[1] - 1) - start_state[1]), 4, (0, 255, 0), -1)
+    cv.circle(arena, (goal_state[0], (map_size[1] - 1) - goal_state[1]), 4, (0, 0, 255), -1)
+    cv.imshow('The start and End Points', arena)
+    cv.waitKey(0)
+    cv.destroyAllWindows()
+
+    # For storing the tree
+    found_tree = list()
+
+    # For storing the nearest node and the distance from the random point
+    near_node = (0, 0)
+    parent_distance = 0
+    near_node_distance = 0
+    neighbours_list = list()
+
+    dist_ratio = 0
+
+    new_node = (0, 0)
+
+    current_state = rrt_star()
+    current_state.parent_node = None
+    current_state.current_node = start_state
+
+    found_tree.append(deepcopy(current_state))
+
+    for i in range(number_of_nodes):
+
+        # while is_not_goal(found_tree, goal_state, goal_node_threshold):
+        rand_point = (random.randint(0, (map_size[0] - 1)), random.randint(0, (map_size[1] - 1)))
+        # rand_point = goal_state
+
+        if is_in_range(found_tree, rand_point, random_point_threshold) or in_obstacle(arena, map_size, rand_point, clearance):
+            i -= 1
+            continue
+
+        near_node, near_node_distance = closest_node(found_tree, rand_point)
+        parent_distance = parent_node_distance(found_tree, near_node)
+        
+        dist_ratio = step_size / near_node_distance
+        new_node = (int(((1 - dist_ratio) * near_node[0]) + (dist_ratio * rand_point[0])), int(((1 - dist_ratio) * near_node[1]) + (dist_ratio * rand_point[1])))
+
+        # Update near node if it is in obstacle space
+        if in_obstacle(arena, map_size, new_node, clearance):
+            i -= 1
+            continue
+
+        neighbours_list = nearest_neighbours(found_tree, new_node, neighbour_radius)
+
+        # print(f'Data at {i+1}th iteration')
+        # print(f'Parent distance {parent_distance}')
+        # print(f'Neighbors at {i+1}th iteration are {neighbours_list}')
+
+        if neighbours_list:
+            found_parent, found_distance = neighborhood_correction(neighbours_list, new_node, step_size)
+
+            current_state.parent_node = found_parent
+            current_state.cost_2_come = found_distance
+            current_state.current_node = new_node
+        else:
+            current_state.parent_node = near_node
+            current_state.cost_2_come = parent_distance + step_size
+            current_state.current_node = new_node
+
+        # found_tree.append(new_node)
+        found_tree.append(deepcopy(current_state))
+
+        arena = visualization(arena, map_size, start_state, goal_state, rand_point, found_tree, ball_radius, clearance)
+
+        # To quit when we press p
+        # if cv.waitKey(1) == ord('p'):
+        #     print("Quiting.......:X")
+        #     break
+
+    cv.waitKey(0)
+
+    # Backtracking
+    goal_path = backtracking(found_tree, goal_state, goal_node_threshold)
+    return arena, goal_path
+
+
+# def move_tt(path):
+
+def scout(arena,map_size, start_state, goal_path):
+    # arena = deepcopy(layout)
+    # arena = layout
+    first_point = start_state
+    # distance = 0
+        
+    for point in goal_path:
+
+        cv.circle(arena, (first_point[0], (map_size[1] - 1) - first_point[1]), 6, (0, 255, 0), -1)
+        cv.line(arena, (first_point[0], (map_size[1] - 1) - first_point[1]), (point.current_node[0], (map_size[1] - 1) - point.current_node[1]), (0, 255, 0), 1)
+        # distance += np.linalg.norm(np.array([first_point[0],first_point[1]])-np.array([point.current_node[0],point.current_node[1]]))
+        cv.imshow('Moving the bot', arena)
+        cv.waitKey(150)
+        # cv.imshow('best path', layout)
+        # cv.waitKey(10)
+        first_point = point.current_node
+    return arena
+
+
+
+if __name__ == '__main__':
+
+    # Initializing the data
+    delivery_locs = [(300,30),(130,150),(130,540), (460,510),(555,120),(300,30)]
+    # start_state = delivery_locs[0]
+    # goal_state = delivery_locs[1]
+    charge_station = (360,360)
+    
+    # Tunable parameters
+    map_size = (600, 600)
+    step_size = 30
+    random_point_threshold = 2
+    goal_node_threshold = 20
+    neighbour_radius = 25
+    number_of_nodes = 2500
+    clearance = 10
+    ball_radius = 50
+    full_charge = 1000
+    charge = full_charge
+
+    i = 0
+    path_travelled = deepcopy(layout)
+
+    start_state = delivery_locs[0]
+    goal_state = delivery_locs[1]
+
+
+    while i<5:
+
+        
+
+        arena, goal_path = rrt_star_algorithm(start_state, map_size, goal_state, step_size, random_point_threshold, goal_node_threshold, neighbour_radius, number_of_nodes, clearance, ball_radius)
+
+        if goal_path:
+        
+            # arena = layout
+            cv.circle(arena, (start_state[0], (map_size[1] - 1) - start_state[1]), 4, (0, 255, 0), -1)
+            cv.circle(arena, (goal_state[0], (map_size[1] - 1) - goal_state[1]), 4, (0, 0, 255), -1)
+            distance = plot_found_path(arena, map_size, start_state, goal_path, 'Best Path')
+            if distance < charge:
+                
+                #move the bot
+                path_travelled = scout(path_travelled, map_size,start_state,goal_path)
+                # rosnode
+                charge = charge - distance
+                
+            else:
+                print("no charge left")
+                goal_state = charge_station
+                # path_travelled = scout(path_travelled, map_size,start_state,goal_path)
+                charge = full_charge
+                continue
+            print("distance: ", distance)
+            cv.waitKey(0)
+            # start_state = ()
+        else:
+            print('Goal not reached! :(')
+        # i+=1
+        if goal_state == charge_station:
+            charge = full_charge
+            i +=1
+            start_state = charge_station
+            goal_state = delivery_locs[i]
+            i-=1
+            
+        else:
+            i+=1
+            start_state = delivery_locs[i]
+            goal_state = delivery_locs[i+1]
+        
+        
+
+
+
+
+    
