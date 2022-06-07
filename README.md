@@ -22,7 +22,7 @@ In this project, RRT* star algorithm has been implemeted for path planning for a
 
 3.Launch the algorithm:
     
-    roslaunch rrt rrt_start.launch
+    roslaunch rrt rrt_star.launch
 
 4.For OpenCV simulation only run:
   
