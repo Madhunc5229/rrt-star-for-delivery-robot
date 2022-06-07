@@ -34,4 +34,5 @@ In this project, RRT* star algorithm has been implemeted for path planning for a
 
 ## Output:
 
-https://user-images.githubusercontent.com/61328094/172286499-1f61b019-dc84-4a0a-8e4e-cce6415eaa50.mp4
+https://user-images.githubusercontent.com/61328094/172286914-8b1295f8-ba2a-403f-99d8-e5e7fa4b841e.mp4
+
